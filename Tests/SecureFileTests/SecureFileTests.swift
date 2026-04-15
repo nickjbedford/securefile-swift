@@ -18,7 +18,7 @@ class EncodableTest: Codable
 	}
 }
 
-@Test func example() async throws
+@Test func encodableIsWrittenThenReadSuccessfullyUntilKeyIsIncorrect() async throws
 {
 	let url = FileManager.default.temporaryDirectory.appending(component: "hello_world_\(randomString()).txt")
 	let key = SymmetricKey(size: .bits256)

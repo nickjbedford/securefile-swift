@@ -48,7 +48,7 @@ class SecureFile
 	{
 		get
 		{
-			FileManager.default.fileExists(atPath: url.path())
+			FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
 		}
 	}
 	
@@ -231,9 +231,7 @@ class SecureFile
 	
 	private func readAesGcm(_ fileHandle: FileHandle, version: Int8) throws -> Data
 	{
-		///
-		/// Only one version (pre-validated), no need to check `version`
-		///
+		// Only one version (pre-validated), no need to check `version`
 		
 		let nonce = try AES.GCM.Nonce(data: readNonce(from: fileHandle, countBytes: EncryptionMethod.aesGcm.nonceLength))
 		

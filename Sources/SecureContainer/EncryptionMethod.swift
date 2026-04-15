@@ -7,9 +7,9 @@
 
 /// The format used to encrypt a secure file's contents. This is typically
 /// the encryption method used, such as AES-GCM encryption.
-enum EncryptionMethod: Int8
+public enum EncryptionMethod: Int8, Sendable
 {
-	static let best = EncryptionMethod.aesGcm
+	public static let best = EncryptionMethod.aesGcm
 	
 	/// Use AES-GCM encryption with a 96-bit nonce.
 	case aesGcm = 0
