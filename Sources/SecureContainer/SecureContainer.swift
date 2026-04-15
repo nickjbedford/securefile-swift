@@ -1,2 +1,18 @@
-// The Swift Programming Language
-// https://docs.swift.org/swift-book
+//
+//  SecureFileContainer.swift
+//  iO Scanner
+//
+//  Created by Nick Bedford on 15/4/2026.
+//
+
+import Foundation
+
+class SecureFileContainer
+{
+	let directory: URL
+	
+	init(directory: URL)
+	{
+		self.directory = directory
+	}
+}

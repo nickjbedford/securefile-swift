@@ -1,5 +1,5 @@
 //
-//  SecureFileFormat.swift
+//  EncryptionMethod.swift
 //  SecureFile
 //
 //  Created by Nick Bedford on 15/4/2026.
@@ -7,7 +7,7 @@
 
 /// The format used to encrypt a secure file's contents. This is typically
 /// the encryption method used, such as AES-GCM encryption.
-enum EncryptionMethod: UInt8
+enum EncryptionMethod: Int8
 {
 	static let best = EncryptionMethod.aesGcm
 	
@@ -28,7 +28,7 @@ enum EncryptionMethod: UInt8
 	}
 	
 	/// Specifies the current version of the format.
-	var currentVersion: UInt8
+	var currentVersion: Int8
 	{
 		get
 		{
@@ -41,7 +41,7 @@ enum EncryptionMethod: UInt8
 	}
 	
 	/// Specifies the available versions of the format.
-	var versions: [UInt8]
+	var versions: [Int8]
 	{
 		get
 		{

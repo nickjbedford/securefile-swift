@@ -8,64 +8,63 @@
 
 import Foundation
 
-extension FileHandle
+public extension FileHandle
 {
 	func read(expectedCount count: Int) throws -> Data
 	{
-		guard let data = try read(upToCount: count) else
+		guard let data = try read(upToCount: count),
+			  data.count == count else
 		{
-			throw NSError(domain: "com.iorthotics.scanner", code: 0, userInfo: [
-				NSLocalizedDescriptionKey: "File data could not be read"
-			])
-		}
-		
-		guard data.count == count else
-		{
-			throw NSError(domain: "com.iorthotics.scanner", code: 0, userInfo: [
-				NSLocalizedDescriptionKey: "File data did not match expected length"
-			])
+			throw SecureFileError.dataReadError
 		}
 		
 		return data
 	}
 	
-	func readDataCount(expectedMax max: Int? = nil) throws -> Int
+	func readInt8() throws -> Int8
 	{
-		guard let data = try read(upToCount: MemoryLayout<UInt64>.size),
-			  data.count == MemoryLayout<UInt64>.size,
-			  let unsigned = data.bigEndianToUInt64 else
+		guard let byte = try read(expectedCount: 1).first else
 		{
-			throw NSError(domain: "com.iorthotics.scanner", code: 0, userInfo: [
-				NSLocalizedDescriptionKey: "Count value not found in file"
-			])
+			throw SecureFileError.dataReadError
 		}
 		
-		guard let count = Int(exactly: unsigned) else
-		{
-			throw NSError(domain: "com.iorthotics.scanner", code: 0, userInfo: [
-				NSLocalizedDescriptionKey: "Count value is not valid"
-			])
-		}
-		
-		guard count >= 0 && count <= (max ?? Int.max) else
-		{
-			throw NSError(domain: "com.iorthotics.scanner", code: 0, userInfo: [
-				NSLocalizedDescriptionKey: "Count is not within the expected range"
-			])
-		}
-		
-		return count
+		return Int8(bitPattern: byte)
 	}
 	
-	func write(dataCount count: Int) throws -> Void
+	func readInt(max: Int? = nil, min: Int? = 0) throws -> Int
 	{
-		guard let value = UInt64(exactly: count) else
+		let intSize = MemoryLayout<Int64>.size
+		
+		guard let data = try read(upToCount: intSize),
+			  data.count == intSize else
 		{
-			throw NSError(domain: "com.iorthotics.scanner", code: 0, userInfo: [
-				NSLocalizedDescriptionKey: "Could not write data length to file handle"
-			])
+			throw SecureFileError.dataReadError
 		}
-			
-		try write(contentsOf: value.bigEndianData)
+		
+		guard let value = Int(exactly: Int64(bigEndian: data.withUnsafeBytes {
+			$0.load(as: Int64.self)
+		})) else
+		{
+			throw SecureFileError.integerError
+		}
+		
+		guard value >= (min ?? Int.min) && value <= (max ?? Int.max) else
+		{
+			throw SecureFileError.integerOverflowError
+		}
+		
+		return value
+	}
+	
+	func write(_ value: Int) throws -> Void
+	{
+		var value = Int64(value).bigEndian
+		let data = Data(bytes: &value, count: MemoryLayout<Int64>.size)
+		try write(contentsOf: data)
+	}
+	
+	func write(_ value: Int8) throws -> Void
+	{
+		try write(contentsOf: Data([UInt8(bitPattern: value)]))
 	}
 }
