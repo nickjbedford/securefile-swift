@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum SecureFileContainerError: Error
+public enum SecureFileContainerError: Error
 {
 	case directoryPathCannotBeUsed
 	case directoryNotCreated

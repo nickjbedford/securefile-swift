@@ -10,9 +10,9 @@ import CryptoKit
 
 /// `SecureFileContainer` is the interface to read and write secure encrypted files under a container directory.
 /// It allows easy creation of nested container folders and access to named files, all using a single `SymmetricKey`.
-class SecureFileContainer
+public class SecureFileContainer
 {
-	let directory: URL
+	public let directory: URL
 	private let key: SymmetricKey
 	private let temporaryDirectory: URL
 	
@@ -21,7 +21,7 @@ class SecureFileContainer
 	///   - directory: The directory where files will be encrypted using `SecureFile`.
 	///   - key: The symmetric key to use.
 	///   - temporaryDirectory: Optional. The temporary file directory to pass to `SecureFile` instances for use when writing encrypted files.
-	init(directory: URL,
+	public init(directory: URL,
 		 key: SymmetricKey,
 		 temporaryDirectory: URL? = nil) throws
 	{
@@ -35,7 +35,7 @@ class SecureFileContainer
 	/// does not need to exist yet.
 	/// - Parameter name: The basename of the file.
 	/// - Returns: A `SecureFile` instance pointing to the file path specified.
-	func file(_ basename: String) -> SecureFile
+	public func file(_ basename: String) -> SecureFile
 	{
 		let url = directory.appending(component: basename, directoryHint: .notDirectory)
 		return SecureFile(url: url, key: key, temporaryDirectory: temporaryDirectory)
@@ -44,7 +44,7 @@ class SecureFileContainer
 	/// Creates a `SecureFileContainer` instance to a folder under this directory and ensures it is created on disk.
 	/// - Parameter name: The name of the sub-folder.
 	/// - Returns: A `SecureFileContainer` instance pointing to the
-	func folder(_ name: String) throws -> SecureFileContainer
+	public func folder(_ name: String) throws -> SecureFileContainer
 	{
 		let directory = self.directory.appending(component: name, directoryHint: .isDirectory)
 		return try SecureFileContainer(directory: directory, key: key)
@@ -53,7 +53,7 @@ class SecureFileContainer
 	/// Determines if the folder under this container exists and is a directory.
 	/// - Parameter name: The name of the sub-folder.
 	/// - Returns: Whether the sub-folder exists and is a directory.
-	func hasFolder(_ name: String) -> Bool
+	public func hasFolder(_ name: String) -> Bool
 	{
 		let directory = self.directory.appending(component: name, directoryHint: .isDirectory)
 		var isDirectory: ObjCBool = false

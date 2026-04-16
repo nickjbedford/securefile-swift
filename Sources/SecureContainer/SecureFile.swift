@@ -10,15 +10,15 @@ import CryptoKit
 
 /// `SecureFile` is the interface to read and write secured files using encryption,
 /// such as AES-GCM encryption with a symmetric key. Apple's CryptoKit framework is used.
-class SecureFile
+public class SecureFile
 {
 	private static let tempFilePrefix = "TempSecureFile_"
 	private static let magicHeader = "SECFILE_"
 	private static let magicHeaderData = magicHeader.data(using: .ascii)!
 	private static let maxExpectedContentLength = 1024 * 1024 * 1024
 	
-	let url: URL
-	let encryptionMethod: EncryptionMethod
+	public let url: URL
+	public let encryptionMethod: EncryptionMethod
 	
 	private let key: SymmetricKey
 	private let temporaryDirectory: URL
@@ -32,7 +32,7 @@ class SecureFile
 	///   - format: The format to use 
 	///   - temporaryDirectory: Optional. The temporary directory to use when writing the file atomically.
 	///   This will use `FileManager.default.temporaryDirectory` if not specified.
-	init(url: URL,
+	public init(url: URL,
 		 key: SymmetricKey,
 		 encryptionMethod: EncryptionMethod = .best,
 		 temporaryDirectory: URL? = nil)
@@ -44,7 +44,7 @@ class SecureFile
 	}
 	
 	/// Determines whether the file exists or not.
-	var exists: Bool
+	public var exists: Bool
 	{
 		get
 		{
@@ -54,7 +54,7 @@ class SecureFile
 	
 	/// Reads the file into its original plain-text binary data.
 	/// - Returns: A Data object containing the original plain-text data.
-	func read() throws -> Data
+	public func read() throws -> Data
 	{
 		guard exists else
 		{
@@ -95,7 +95,7 @@ class SecureFile
 	/// Reads the file into its original plain-text data and return it as
 	/// a UTF-8 string.
 	/// - Returns: A String containing the original plain-text data decoded as UTF-8.
-	func readAsString() throws -> String
+	public func readAsString() throws -> String
 	{
 		guard let string = String(data: try read(), encoding: .utf8) else
 		{
@@ -108,14 +108,14 @@ class SecureFile
 	/// Reads the file as JSON and decode it into its original type.
 	/// - Parameter type: The `Decodable` type to decode into.
 	/// - Returns: An object of the specified `Decodable` type.
-	func readJson<T: Decodable>(as type: T.Type) throws -> T
+	public func readJson<T: Decodable>(as type: T.Type) throws -> T
 	{
 		try JSONDecoder().decode(type, from: try read())
 	}
 	
 	/// Writes a string encoded in UTF-8 to the file securely using the specified `encryptionMethod`.
 	/// - Parameter string: The UTF-8 string to write.
-	func write(string: String) throws -> Void
+	public func write(string: String) throws -> Void
 	{
 		guard let data = string.data(using: .utf8) else
 		{
@@ -127,7 +127,7 @@ class SecureFile
 	
 	/// Writes a JSON-encoded `Encodable` object to the file securely using the specified `encryptionMethod`.
 	/// - Parameter jsonEncodable: The JSON-encodable `Encodable` object to write to the file.
-	func write(jsonEncodable: Encodable) throws -> Void
+	public func write(jsonEncodable: Encodable) throws -> Void
 	{
 		let encoded = try JSONEncoder().encode(jsonEncodable)
 		try write(encoded)
@@ -135,7 +135,7 @@ class SecureFile
 	
 	/// Writes a binary `Data` object to the file securely using the specified `encryptionMethod`.
 	/// - Parameter data: The `Data` object to write.
-	func write(_ data: Data) throws -> Void
+	public func write(_ data: Data) throws -> Void
 	{
 		let basename = "\(Self.tempFilePrefix)\(randomString()).tmp"
 		let temporaryUrl = temporaryDirectory.appending(component: basename, directoryHint: .notDirectory)
