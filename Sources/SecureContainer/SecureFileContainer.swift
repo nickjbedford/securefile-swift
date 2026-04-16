@@ -22,8 +22,8 @@ public class SecureFileContainer
 	///   - key: The symmetric key to use.
 	///   - temporaryDirectory: Optional. The temporary file directory to pass to `SecureFile` instances for use when writing encrypted files.
 	public init(directory: URL,
-		 key: SymmetricKey,
-		 temporaryDirectory: URL? = nil) throws
+				key: SymmetricKey,
+				temporaryDirectory: URL? = nil) throws
 	{
 		self.directory = directory
 		self.key = key
@@ -41,6 +41,14 @@ public class SecureFileContainer
 		return SecureFile(url: url, key: key, temporaryDirectory: temporaryDirectory)
 	}
 	
+	/// Determines if a file or folder exists.
+	/// - Parameter name: The name of the file or folder.
+	/// - Returns: A `URLExists` structure containing whether the item exists and whether it is a directory or not.
+	public func has(_ name: String) -> URLExists
+	{
+		URLExists(url: directory.appending(component: name))
+	}
+	
 	/// Creates a `SecureFileContainer` instance to a folder under this directory and ensures it is created on disk.
 	/// - Parameter name: The name of the sub-folder.
 	/// - Returns: A `SecureFileContainer` instance pointing to the
@@ -48,22 +56,6 @@ public class SecureFileContainer
 	{
 		let directory = self.directory.appending(component: name, directoryHint: .isDirectory)
 		return try SecureFileContainer(directory: directory, key: key)
-	}
-	
-	/// Determines if the folder under this container exists and is a directory.
-	/// - Parameter name: The name of the sub-folder.
-	/// - Returns: Whether the sub-folder exists and is a directory.
-	public func hasFolder(_ name: String) -> Bool
-	{
-		let directory = self.directory.appending(component: name, directoryHint: .isDirectory)
-		var isDirectory: ObjCBool = false
-		
-		guard FileManager.default.fileExists(atPath: directory.path(percentEncoded: false), isDirectory: &isDirectory) else
-		{
-			return false
-		}
-		
-		return isDirectory.boolValue
 	}
 	
 	private func ensureExists() throws -> Void
