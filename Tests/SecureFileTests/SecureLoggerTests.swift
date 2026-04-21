@@ -31,8 +31,8 @@ import Foundation
 
     #expect(await !log.needsFlushing)
 
-    await log.log(type: .info, "Hello, world!", now: now1)
-	await log.log(type: .error, "Goodbye, world!", now: now2)
+	let line1 = await log.log(type: .info, "Hello, world!", now: now1)
+	let line2 = await log.log(type: .error, "Goodbye, world!", now: now2)
 
     #expect(await log.needsFlushing)
 
@@ -47,6 +47,8 @@ import Foundation
 	let lines = contents.split(separator: "\n")
 	#expect(lines[0] == expected1)
 	#expect(lines[1] == expected2)
+	#expect(line1 == expected1)
+	#expect(line2 == expected2)
 	
 	await log.flush()
 }

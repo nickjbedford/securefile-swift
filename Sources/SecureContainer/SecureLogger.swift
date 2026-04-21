@@ -50,6 +50,8 @@ public final actor SecureLogger
 	public let secureFile: SecureFile
 	public let configuration: Configuration
 	
+	public private(set) var lastLine: String = ""
+	
 	/// Initialises a secure logger using an existing `SecureFile` instance.
 	/// - Parameters:
 	///   - secureFile: A `SecureFile` to write to.
@@ -124,9 +126,10 @@ public final actor SecureLogger
 	///   - message: The log message to be written.
 	///   - additionalData: An array of additional string data to append as columns.
 	///   - now: The date and time of the message. This defaults to now.
-	public func notice(_ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
+	@discardableResult
+	public func notice(_ message: String, additionalData: [String] = [], now: Date? = nil) -> String
 	{
-		log(type: .notice, message, additionalData: additionalData, now: now)
+		return log(type: .notice, message, additionalData: additionalData, now: now)
 	}
 	
 	/// Add an INFO message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
@@ -135,9 +138,10 @@ public final actor SecureLogger
 	///   - message: The log message to be written.
 	///   - additionalData: An array of additional string data to append as columns.
 	///   - now: The date and time of the message. This defaults to now.
-	public func info(_ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
+	@discardableResult
+	public func info(_ message: String, additionalData: [String] = [], now: Date? = nil) -> String
 	{
-		log(type: .info, message, additionalData: additionalData, now: now)
+		return log(type: .info, message, additionalData: additionalData, now: now)
 	}
 	
 	/// Add a WARNING message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
@@ -146,9 +150,10 @@ public final actor SecureLogger
 	///   - message: The log message to be written.
 	///   - additionalData: An array of additional string data to append as columns.
 	///   - now: The date and time of the message. This defaults to now.
-	public func warning(_ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
+	@discardableResult
+	public func warning(_ message: String, additionalData: [String] = [], now: Date? = nil) -> String
 	{
-		log(type: .warning, message, additionalData: additionalData, now: now)
+		return log(type: .warning, message, additionalData: additionalData, now: now)
 	}
 	
 	/// Add an ERROR message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
@@ -157,9 +162,10 @@ public final actor SecureLogger
 	///   - message: The log message to be written.
 	///   - additionalData: An array of additional string data to append as columns.
 	///   - now: The date and time of the message. This defaults to now.
-	public func error(_ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
+	@discardableResult
+	public func error(_ message: String, additionalData: [String] = [], now: Date? = nil) -> String
 	{
-		log(type: .error, message, additionalData: additionalData, now: now)
+		return log(type: .error, message, additionalData: additionalData, now: now)
 	}
 	
 	/// Add a PERF message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
@@ -167,9 +173,10 @@ public final actor SecureLogger
 	///   - type: The log entry type.
 	///   - message: The log message to be written.
 	///   - now: The date and time of the message. This defaults to now.
-	public func performance(_ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
+	@discardableResult
+	public func performance(_ message: String, additionalData: [String] = [], now: Date? = nil) -> String
 	{
-		log(type: .performance, message, additionalData: additionalData, now: now)
+		return log(type: .performance, message, additionalData: additionalData, now: now)
 	}
 	
 	/// Add a message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
@@ -179,7 +186,8 @@ public final actor SecureLogger
 	///   - message: The log message to be written.
 	///   - additionalData: An array of additional string data to append as columns.
 	///   - now: The date and time of the message. This defaults to now.
-	public func log(type: LogType, _ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
+	@discardableResult
+	public func log(type: LogType, _ message: String, additionalData: [String] = [], now: Date? = nil) -> String
 	{
 		let parts = [
 			ISO8601DateFormatter().string(from: now ?? Date()),
@@ -187,7 +195,9 @@ public final actor SecureLogger
 			message
 		] + additionalData
 		
-		log(line: parts.joined(separator: self.configuration.columnSeparator))
+		let line = parts.joined(separator: self.configuration.columnSeparator).trimmingCharacters(in: .newlines)
+		log(line: line)
+		return line
 	}
 	
 	/// Adds a pre-formatted line to the log buffer to be flushed later.
