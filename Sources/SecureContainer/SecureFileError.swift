@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum SecureFileError: Error
+public enum SecureFileError: Error, Sendable
 {
 	case fileCreationError(URL)
 	case fileLocked(URL)

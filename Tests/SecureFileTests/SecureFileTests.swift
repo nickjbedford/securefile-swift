@@ -4,11 +4,11 @@ import Foundation
 
 @testable import SecureFile
 
-class EncodableTest: Codable
+final class EncodableTest: Codable
 {
-	public var number: Int
-	public var string: String
-	public var data: Data
+	public let number: Int
+	public let string: String
+	public let data: Data
 	
 	init(number: Int, string: String, data: Data)
 	{
@@ -24,25 +24,26 @@ class EncodableTest: Codable
 	let key = SymmetricKey(size: .bits256)
 	let file = SecureFile(url: url, key: key)
 	
-	#expect(!file.exists)
+	#expect(await !file.exists)
 
 	let encodable = EncodableTest(number: 123, string: "Hello, world!", data: "Goodbye, universe!".data(using: .utf8)!)
-	try file.write(jsonEncodable: encodable)
+	let bytes = try await file.write(jsonEncodable: encodable)
 	
-	#expect(file.exists)
+	#expect(bytes > 0)
+	#expect(await file.exists)
 	
-	let decoded = try file.readJson(as: EncodableTest.self)
+	let decoded = try await file.readJson(as: EncodableTest.self)
 	
 	#expect(decoded.number == encodable.number)
 	#expect(decoded.string == encodable.string)
 	#expect(String(data: decoded.data, encoding: .utf8) == "Goodbye, universe!")
 	
-	#expect(throws: CryptoKitError.self) {
+	await #expect(throws: CryptoKitError.self) {
 		let otherKey = SymmetricKey(size: .bits256)
 		let incorrectFile = SecureFile(url: url, key: otherKey)
 		
-		#expect(incorrectFile.exists)
+		#expect(await incorrectFile.exists)
 		
-		let _ = try incorrectFile.readJson(as: EncodableTest.self)
+		let _ = try await incorrectFile.readJson(as: EncodableTest.self)
 	}
 }

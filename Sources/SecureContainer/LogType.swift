@@ -5,7 +5,7 @@
 //  Created by Nick Bedford on 21/4/2026.
 //
 
-public enum LogType: String
+public enum LogType: String, Sendable
 {
 	case notice = "NOTICE"
 	case info = "INFO"

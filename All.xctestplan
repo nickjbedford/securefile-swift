@@ -1,0 +1,24 @@
+{
+  "configurations" : [
+    {
+      "id" : "287246BE-27A6-44BA-A22C-03A90707EF2E",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "SecureFileTests",
+        "name" : "SecureFileTests"
+      }
+    }
+  ],
+  "version" : 1
+}

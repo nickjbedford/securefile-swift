@@ -16,12 +16,12 @@ import Foundation
 	
 	let file = container.file("Test.txt")
 	
-	#expect(!file.exists)
+	#expect(await !file.exists)
 	
-	try file.write(string: "Hello, world!")
+	try await file.write(string: "Hello, world!")
 	
-	#expect(file.exists)
-	#expect(try file.readAsString() == "Hello, world!")
+	#expect(await file.exists)
+	#expect(try await file.readAsString() == "Hello, world!")
 }
 
 @Test func nestedSecureContainerCanCreateSecureFile() async throws
@@ -32,10 +32,10 @@ import Foundation
 	
 	let file = container.file("Test.txt")
 	
-	#expect(!file.exists)
+	#expect(await !file.exists)
 	
-	try file.write(string: "Hello, world!")
+	try await file.write(string: "Hello, world!")
 	
-	#expect(file.exists)
-	#expect(try file.readAsString() == "Hello, world!")
+	#expect(await file.exists)
+	#expect(try await file.readAsString() == "Hello, world!")
 }

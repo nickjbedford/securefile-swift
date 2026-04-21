@@ -10,7 +10,7 @@ import CryptoKit
 
 /// `SecureFile` is the interface to read and write secured files using encryption,
 /// such as AES-GCM encryption with a symmetric key. Apple's CryptoKit framework is used.
-public class SecureFile
+public final actor SecureFile
 {
 	private static let tempFilePrefix = "TempSecureFile_"
 	private static let magicHeader = "SECFILE_"
@@ -48,7 +48,8 @@ public class SecureFile
 	{
 		get
 		{
-			FileManager.default.fileExists(atPath: url.path(percentEncoded: false))
+			let path = url.path(percentEncoded: false)
+			return FileManager.default.fileExists(atPath: path)
 		}
 	}
 	
@@ -108,45 +109,50 @@ public class SecureFile
 	/// Reads the file as JSON and decode it into its original type.
 	/// - Parameter type: The `Decodable` type to decode into.
 	/// - Returns: An object of the specified `Decodable` type.
-	public func readJson<T: Decodable>(as type: T.Type) throws -> T
+	public nonisolated func readJson<T: Decodable>(as type: T.Type) async throws -> T
 	{
-		try JSONDecoder().decode(type, from: try read())
+		try await JSONDecoder().decode(type, from: try read())
 	}
 	
 	/// Writes a string encoded in UTF-8 to the file securely using the specified `encryptionMethod`.
 	/// - Parameter string: The UTF-8 string to write.
-	public func write(string: String) throws -> Void
+	@discardableResult
+	public func write(string: String) throws -> UInt64
 	{
 		guard let data = string.data(using: .utf8) else
 		{
 			throw SecureFileError.invalidStringConverson(url)
 		}
 		
-		try write(data)
+		return try write(data)
 	}
 	
 	/// Writes a JSON-encoded `Encodable` object to the file securely using the specified `encryptionMethod`.
 	/// - Parameter jsonEncodable: The JSON-encodable `Encodable` object to write to the file.
-	public func write(jsonEncodable: Encodable) throws -> Void
+	@discardableResult
+	public nonisolated func write(jsonEncodable encodable: Encodable) async throws -> UInt64
 	{
-		let encoded = try JSONEncoder().encode(jsonEncodable)
-		try write(encoded)
+		let encoded = try JSONEncoder().encode(encodable)
+		return try await write(encoded)
 	}
 	
 	/// Writes a binary `Data` object to the file securely using the specified `encryptionMethod`.
 	/// - Parameter data: The `Data` object to write.
-	public func write(_ data: Data) throws -> Void
+	@discardableResult
+	public func write(_ data: Data) throws -> UInt64
 	{
 		let basename = "\(Self.tempFilePrefix)\(randomString()).tmp"
 		let temporaryUrl = temporaryDirectory.appending(component: basename, directoryHint: .notDirectory)
+		var bytesWritten: UInt64 = 0
 		
-		guard FileManager.default.createFile(atPath: temporaryUrl.path(), contents: nil) else
+		guard FileManager.default.createFile(atPath: temporaryUrl.path(percentEncoded: false), contents: nil) else
 		{
 			throw SecureFileError.fileCreationError(temporaryUrl)
 		}
 		
 		do
 		{
+			
 			let success = try lock(urlForWriting: temporaryUrl) { fileHandle in
 				try fileHandle.write(contentsOf: Self.magicHeaderData)
 				try fileHandle.write(encryptionMethod.rawValue)
@@ -157,6 +163,8 @@ public class SecureFile
 					case .aesGcm:
 						try writeAesGcm(data: data, to: fileHandle)
 				}
+				
+				bytesWritten = (try? fileHandle.offset()) ?? 0
 			}
 			
 			guard success else
@@ -201,6 +209,8 @@ public class SecureFile
 			
 			try FileManager.default.moveItem(at: temporaryUrl, to: url)
 			remove(urlIfExists: urlForBackupOfPrevious)
+			
+			return bytesWritten
 		}
 		catch
 		{

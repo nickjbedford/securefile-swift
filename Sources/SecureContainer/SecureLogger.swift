@@ -11,15 +11,12 @@ import CryptoKit
 import UIKit
 #endif
 
-/// SecureLogger buffers log messages and persists them to an encrypted log file
-/// using `SecureFile`. It batches log lines for efficiency and uses atomic writes to prevent file corruption.
-///
-/// The log buffer can be configured to flush after a certain number of lines, bytes or time has elapsed.
-/// It will also listen to UIApplication lifecycle events to ensure it is flushed.
-public final class SecureLogger
+/// This type protects all mutable state via its private serial DispatchQueue (`queue`).
+/// We therefore declare it @unchecked Sendable to allow capturing `self` in @Sendable closures used by GCD.
+public final actor SecureLogger
 {
 	/// Specifies configuration options for `SecureLogger`.
-    public struct Configuration
+	public struct Configuration: Sendable
 	{
 		/// The separator to use between columns of text. Defaults to TAB character.
 		public let columnSeparator: String
@@ -34,8 +31,8 @@ public final class SecureLogger
         public let flushInterval: TimeInterval
 
 		public init(columnSeparator: String = "\t",
-					maxBufferCount: Int = 32,
-                    maxBufferBytes: Int = 4096,
+					maxBufferCount: Int = 64,
+                    maxBufferBytes: Int = 8192,
                     flushInterval: TimeInterval = 2.0)
 		{
 			self.columnSeparator = columnSeparator
@@ -45,13 +42,12 @@ public final class SecureLogger
         }
     }
 
-    private let queue: DispatchQueue
-    public let secureFile: SecureFile
+	private var flushTask: Task<Void, Never>? = nil
     private var buffer: [String] = []
     private var bufferedBytes: Int = 0
-    private var timer: DispatchSourceTimer?
     private var isShuttingDown = false
 	
+	public let secureFile: SecureFile
 	public let configuration: Configuration
 	
 	/// Initialises a secure logger using an existing `SecureFile` instance.
@@ -63,9 +59,10 @@ public final class SecureLogger
 	{
 		self.configuration = configuration
 		self.secureFile = secureFile
-		self.queue = DispatchQueue(label: "SecureLogger.queue", qos: .utility)
-		startTimer()
-		registerLifecycleObserversIfNeeded()
+		Task {
+			await startFlushInterval()
+			await registerLifecycleObserversIfNeeded()
+		}
 	}
 	
 	/// Initialises a secure logger using a `URL`, `SymmetricKey` and other configuration options.
@@ -75,19 +72,41 @@ public final class SecureLogger
 	///   - encryptionMethod: The `EncryptionMethod` to use for the `SecureFile`. Defaults to `.best`.
 	///   - temporaryDirectory: The temporary directory to use for atomic writes. Defaults to `FileManager.default.temporaryDirectory`.
 	///   - configuration: The logger configuration.
-	public convenience init(url: URL,
-							key: SymmetricKey,
-							encryptionMethod: EncryptionMethod = .best,
-							temporaryDirectory: URL? = nil,
-							configuration: Configuration = Configuration())
+	public init(url: URL,
+				key: SymmetricKey,
+				encryptionMethod: EncryptionMethod = .best,
+				temporaryDirectory: URL? = nil,
+				configuration: Configuration = Configuration())
 	{
 		let secureFile = SecureFile(url: url, key: key, encryptionMethod: encryptionMethod, temporaryDirectory: temporaryDirectory)
 		self.init(secureFile: secureFile, configuration: configuration)
 	}
 
-    deinit
+    deinit // nonisolated shutdown
 	{
-        shutdown()
+		isShuttingDown = true
+		flushTask?.cancel()
+		
+		let observers = lifecycleObservers
+		Task {
+			await observers?.remove()
+		}
+		
+		let buffer = buffer
+		guard !buffer.isEmpty else
+		{
+			return
+		}
+		
+#if DEBUG
+		print("[SecureLogger]: DEINIT - Flushing \(buffer.count) new lines to log file...")
+#endif
+		
+		let secureFile = secureFile
+		
+		Task { [secureFile, buffer] in
+			try await Self.append(newLines: buffer, to: secureFile)
+		}
     }
 	
 	/// Determines if the log has entries that need to be flushed (`true`) or if the buffer is empty (`false`).
@@ -95,9 +114,7 @@ public final class SecureLogger
 	{
 		get
 		{
-			queue.sync {
-				!buffer.isEmpty
-			}
+			!buffer.isEmpty
 		}
 	}
 	
@@ -164,13 +181,13 @@ public final class SecureLogger
 	///   - now: The date and time of the message. This defaults to now.
 	public func log(type: LogType, _ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
 	{
-		let line = ([
+		let parts = [
 			ISO8601DateFormatter().string(from: now ?? Date()),
 			type.rawValue,
 			message
-		] + additionalData).joined(separator: configuration.columnSeparator)
+		] + additionalData
 		
-		log(line: line)
+		log(line: parts.joined(separator: self.configuration.columnSeparator))
 	}
 	
 	/// Adds a pre-formatted line to the log buffer to be flushed later.
@@ -179,145 +196,160 @@ public final class SecureLogger
 	{
 		let line = line.trimmingCharacters(in: .newlines) + "\n"
 		
-        queue.async { [weak self] in
-            guard let self = self,
-				  !self.isShuttingDown else
-			{
-				return
+		guard !self.isShuttingDown else
+		{
+			return
+		}
+		
+		self.buffer.append(line)
+		self.bufferedBytes += line.lengthOfBytes(using: .utf8)
+		
+		if self.buffer.count >= self.configuration.maxBufferCount || self.bufferedBytes >= self.configuration.maxBufferBytes
+		{
+			Task {
+				await self.flush()
 			}
-			
-            self.buffer.append(line)
-            self.bufferedBytes += line.lengthOfBytes(using: .utf8)
-			
-            if self.buffer.count >= self.configuration.maxBufferCount || self.bufferedBytes >= self.configuration.maxBufferBytes
-			{
-                self.flushImmediate()
-            }
-        }
+		}
     }
 	
-	/// Flushes the log buffer synchronously.
-    public func flush()
+	/// Flushes the log buffer.
+	public func flush() async -> Void
 	{
-        queue.sync { [weak self] in
-            self?.flushImmediate()
-        }
-    }
-
-    public func shutdown()
-	{
-        queue.sync {
-            isShuttingDown = true
-            stopTimer()
-            flushImmediate()
-            unregisterLifecycleObserversIfNeeded()
-        }
-    }
-
-    private func startTimer()
-	{
-        guard configuration.flushInterval > 0,
-			  timer == nil else
+		guard !buffer.isEmpty else
 		{
 			return
 		}
 		
-        let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now() + configuration.flushInterval, repeating: configuration.flushInterval)
-        timer.setEventHandler { [weak self] in
-			#if DEBUG
-			if !(self?.buffer.isEmpty ?? true)
-			{
-				print("[SecureLogger]: Flushing after timeout...")
-			}
-			#endif
-			
-            self?.flushImmediate()
-        }
-        timer.resume()
-        self.timer = timer
-    }
-
-    private func stopTimer()
-	{
-        timer?.setEventHandler {}
-        timer?.cancel()
-        timer = nil
-    }
-
-    private func flushImmediate()
-	{
-        guard !buffer.isEmpty else
-		{
-			return
-		}
+		self.stopFlushInterval()
 		
-		#if DEBUG
+#if DEBUG
 		print("[SecureLogger]: Flushing \(buffer.count) new lines to log file...")
-		#endif
+#endif
 		
-        let lines = buffer
-        buffer.removeAll(keepingCapacity: true)
-        bufferedBytes = 0
-
-        do
+		let lines = buffer
+		buffer.removeAll(keepingCapacity: true)
+		bufferedBytes = 0
+		
+		defer {
+			self.startFlushInterval()
+		}
+		
+		do
 		{
+#if DEBUG
 			let start = DispatchTime.now()
+#endif
 			
-			var existing = secureFile.exists ? try secureFile.readAsString() : ""
-			existing += lines.joined()
+			let bytesWritten = try await Self.append(newLines: lines, to: secureFile)
 			
-			try secureFile.write(string: existing)
-			
+#if DEBUG
 			let duration = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
-			print("[SecureLogger]: Flush \(existing.count) characters took \(duration)ms")
-        }
+			print("[SecureLogger]: Writing \(bytesWritten) bytes of log file took \(duration)ms")
+#endif
+		}
 		catch
 		{
-            // On failure, requeue the lines for a later attempt (best-effort)
-            buffer.insert(contentsOf: lines, at: 0)
-            bufferedBytes = buffer.reduce(0) { $0 + $1.lengthOfBytes(using: .utf8) + 1 }
+			// On failure, requeue the lines for a later attempt (best-effort)
+			buffer.insert(contentsOf: lines, at: 0)
+			bufferedBytes = buffer.reduce(0) { $0 + $1.lengthOfBytes(using: .utf8) + 1 }
 			
 			print("[SecureLogger]: Flushing failed, requeuing due to error '\(error.localizedDescription)'.")
-        }
+		}
     }
 
-    #if canImport(UIKit)
-    private var willResignActiveObserver: NSObjectProtocol?
-    private var willTerminateObserver: NSObjectProtocol?
-    #endif
+    private func startFlushInterval()
+	{
+        guard configuration.flushInterval > 0,
+			  flushTask == nil else
+		{
+			return
+		}
+		
+		flushTask = Task { [weak self] in
+			while !Task.isCancelled
+			{
+				guard let interval = self?.configuration.flushInterval else
+				{
+					return
+				}
+				
+				try? await Task.sleep(for: .microseconds(interval * 1_000_000))
+				
+				guard let self = self else
+				{
+#if DEBUG
+					print("[SecureLogger]: FLUSH TIMER - Weak self is nil")
+#endif
+					return
+				}
+				
+#if DEBUG
+				print("[SecureLogger]: FLUSH TIMER - Flushing if necessary")
+#endif
+				
+				await self.flush()
+			}
+		}
+    }
 
-    private func registerLifecycleObserversIfNeeded()
+    private func stopFlushInterval()
+	{
+		flushTask?.cancel()
+		flushTask = nil
+    }
+	
+	private static func append(newLines: [String], to secureFile: SecureFile) async throws -> UInt64
+	{
+		let exists = await secureFile.exists
+		var existing = exists ? try await secureFile.readAsString() : ""
+		existing += newLines.joined()
+		return try await secureFile.write(string: existing)
+	}
+
+	@MainActor
+	private struct LifecycleObservers: Sendable
+	{
+		#if canImport(UIKit)
+		let willResignActiveObserver: NSObjectProtocol
+		let willTerminateObserver: NSObjectProtocol
+		#endif
+		
+		func remove() -> Void
+		{
+			#if canImport(UIKit)
+			NotificationCenter.default.removeObserver(willResignActiveObserver)
+			NotificationCenter.default.removeObserver(willTerminateObserver)
+			#endif
+		}
+	}
+	
+	private var lifecycleObservers: LifecycleObservers? = nil
+
+    private func registerLifecycleObserversIfNeeded() async
 	{
         #if canImport(UIKit)
-        let center = NotificationCenter.default
-		
-        willResignActiveObserver = center.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: nil) { [weak self] _ in
-            self?.flush()
+        let willResign = NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: nil) { [weak self] _ in
+			Task {
+				await self?.flush()
+			}
         }
         
-		willTerminateObserver = center.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: nil) { [weak self] _ in
-            self?.shutdown()
+		let willTerminate = NotificationCenter.default.addObserver(forName: UIApplication.willTerminateNotification, object: nil, queue: nil) { [weak self] _ in
+			Task {
+				await self?.flush()
+			}
         }
+		
+		lifecycleObservers = await LifecycleObservers(willResignActiveObserver: willResign, willTerminateObserver: willTerminate)
         #endif
     }
 
-    private func unregisterLifecycleObserversIfNeeded()
+    private func unregisterLifecycleObserversIfNeeded() async
 	{
         #if canImport(UIKit)
-        let center = NotificationCenter.default
-        if let observer = willResignActiveObserver
-		{
-			center.removeObserver(observer)
-		}
-		
-        if let observer = willTerminateObserver
-		{
-			center.removeObserver(observer)
-		}
-		
-        willResignActiveObserver = nil
-        willTerminateObserver = nil
+		await lifecycleObservers?.remove()
+		lifecycleObservers = nil
         #endif
     }
 }
+

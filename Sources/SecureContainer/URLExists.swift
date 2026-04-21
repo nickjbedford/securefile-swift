@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct URLExists
+public struct URLExists: Sendable
 {
 	public let exists: Bool
 	public let isDirectory: Bool
