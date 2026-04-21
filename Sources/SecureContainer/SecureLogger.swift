@@ -11,26 +11,30 @@ import CryptoKit
 import UIKit
 #endif
 
-/// SecureLogger buffers pre-formatted messages and persists them to an encrypted log file
-/// using `SecureFile`. It batches appends for efficiency and uses atomic writes for safety.
+/// SecureLogger buffers log messages and persists them to an encrypted log file
+/// using `SecureFile`. It batches log lines for efficiency and uses atomic writes to prevent file corruption.
+///
+/// The log buffer can be configured to flush after a certain number of lines, bytes or time has elapsed.
+/// It will also listen to UIApplication lifecycle events to ensure it is flushed.
 public final class SecureLogger
 {
+	/// Specifies configuration options for `SecureLogger`.
     public struct Configuration
 	{
 		/// The separator to use between columns of text. Defaults to TAB character.
 		public let columnSeparator: String
 		
-        /// Maximum number of messages to buffer before forcing a flush
+        /// Maximum number of messages to buffer before forcing a flush. Defaults to 32.
         public let maxBufferCount: Int
 		
-        /// Maximum total byte size of buffered messages (approximate, UTF-8) before forcing a flush
+        /// Maximum total byte size of buffered messages (approximate, UTF-8) before forcing a flush. Defaults to 4kB.
         public let maxBufferBytes: Int
 		
         /// Time interval to flush buffered messages if not flushed by size thresholds. Defaults to 2 seconds.
         public let flushInterval: TimeInterval
 
 		public init(columnSeparator: String = "\t",
-					maxBufferCount: Int = 64,
+					maxBufferCount: Int = 32,
                     maxBufferBytes: Int = 4096,
                     flushInterval: TimeInterval = 2.0)
 		{
@@ -48,8 +52,13 @@ public final class SecureLogger
     private var timer: DispatchSourceTimer?
     private var isShuttingDown = false
 	
-	public init(url: URL,
-				secureFile: SecureFile,
+	public let configuration: Configuration
+	
+	/// Initialises a secure logger using an existing `SecureFile` instance.
+	/// - Parameters:
+	///   - secureFile: A `SecureFile` to write to.
+	///   - configuration: The logging and buffer configuration.
+	public init(secureFile: SecureFile,
 				configuration: Configuration = Configuration())
 	{
 		self.configuration = configuration
@@ -59,6 +68,13 @@ public final class SecureLogger
 		registerLifecycleObserversIfNeeded()
 	}
 	
+	/// Initialises a secure logger using a `URL`, `SymmetricKey` and other configuration options.
+	/// - Parameters:
+	///   - url: The `URL` for the log file.
+	///   - key: A `SymmetricKey` used to encrypt the log file's contents.
+	///   - encryptionMethod: The `EncryptionMethod` to use for the `SecureFile`. Defaults to `.best`.
+	///   - temporaryDirectory: The temporary directory to use for atomic writes. Defaults to `FileManager.default.temporaryDirectory`.
+	///   - configuration: The logger configuration.
 	public convenience init(url: URL,
 							key: SymmetricKey,
 							encryptionMethod: EncryptionMethod = .best,
@@ -66,17 +82,15 @@ public final class SecureLogger
 							configuration: Configuration = Configuration())
 	{
 		let secureFile = SecureFile(url: url, key: key, encryptionMethod: encryptionMethod, temporaryDirectory: temporaryDirectory)
-		self.init(url: url, secureFile: secureFile, configuration: configuration)
+		self.init(secureFile: secureFile, configuration: configuration)
 	}
-
-    public let configuration: Configuration
 
     deinit
 	{
         shutdown()
     }
 	
-	/// Determines if the log has been flushed (`true`) or if there are still lines in the buffer (`false`).
+	/// Determines if the log has entries that need to be flushed (`true`) or if the buffer is empty (`false`).
 	public var needsFlushing: Bool
 	{
 		get
@@ -87,18 +101,74 @@ public final class SecureLogger
 		}
 	}
 	
-	/// Add a message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
+	/// Add an INFO message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
+	/// - Parameters:
+	///   - type: The log entry type.
+	///   - message: The log message to be written.
+	///   - additionalData: An array of additional string data to append as columns.
+	///   - now: The date and time of the message. This defaults to now.
+	public func notice(_ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
+	{
+		log(type: .notice, message, additionalData: additionalData, now: now)
+	}
+	
+	/// Add an INFO message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
+	/// - Parameters:
+	///   - type: The log entry type.
+	///   - message: The log message to be written.
+	///   - additionalData: An array of additional string data to append as columns.
+	///   - now: The date and time of the message. This defaults to now.
+	public func info(_ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
+	{
+		log(type: .info, message, additionalData: additionalData, now: now)
+	}
+	
+	/// Add a WARNING message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
+	/// - Parameters:
+	///   - type: The log entry type.
+	///   - message: The log message to be written.
+	///   - additionalData: An array of additional string data to append as columns.
+	///   - now: The date and time of the message. This defaults to now.
+	public func warning(_ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
+	{
+		log(type: .warning, message, additionalData: additionalData, now: now)
+	}
+	
+	/// Add an ERROR message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
+	/// - Parameters:
+	///   - type: The log entry type.
+	///   - message: The log message to be written.
+	///   - additionalData: An array of additional string data to append as columns.
+	///   - now: The date and time of the message. This defaults to now.
+	public func error(_ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
+	{
+		log(type: .error, message, additionalData: additionalData, now: now)
+	}
+	
+	/// Add a PERF message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
 	/// - Parameters:
 	///   - type: The log entry type.
 	///   - message: The log message to be written.
 	///   - now: The date and time of the message. This defaults to now.
-	public func log(type: LogType, _ message: String, now: Date? = nil) -> Void
+	public func performance(_ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
 	{
-		let line = [
+		log(type: .performance, message, additionalData: additionalData, now: now)
+	}
+	
+	/// Add a message to the log along with an ISO-8601 timestamp and log entry type indicator to be flushed later.
+	/// Additional columns of string data can be appended as well.
+	/// - Parameters:
+	///   - type: The log entry type.
+	///   - message: The log message to be written.
+	///   - additionalData: An array of additional string data to append as columns.
+	///   - now: The date and time of the message. This defaults to now.
+	public func log(type: LogType, _ message: String, additionalData: [String] = [], now: Date? = nil) -> Void
+	{
+		let line = ([
 			ISO8601DateFormatter().string(from: now ?? Date()),
 			type.rawValue,
 			message
-		].joined(separator: configuration.columnSeparator)
+		] + additionalData).joined(separator: configuration.columnSeparator)
 		
 		log(line: line)
 	}
@@ -121,15 +191,16 @@ public final class SecureLogger
 			
             if self.buffer.count >= self.configuration.maxBufferCount || self.bufferedBytes >= self.configuration.maxBufferBytes
 			{
-                self.flushLocked()
+                self.flushImmediate()
             }
         }
     }
-
+	
+	/// Flushes the log buffer synchronously.
     public func flush()
 	{
-        queue.async { [weak self] in
-            self?.flushLocked()
+        queue.sync { [weak self] in
+            self?.flushImmediate()
         }
     }
 
@@ -138,7 +209,7 @@ public final class SecureLogger
         queue.sync {
             isShuttingDown = true
             stopTimer()
-            flushLocked()
+            flushImmediate()
             unregisterLifecycleObserversIfNeeded()
         }
     }
@@ -161,7 +232,7 @@ public final class SecureLogger
 			}
 			#endif
 			
-            self?.flushLocked()
+            self?.flushImmediate()
         }
         timer.resume()
         self.timer = timer
@@ -174,7 +245,7 @@ public final class SecureLogger
         timer = nil
     }
 
-    private func flushLocked()
+    private func flushImmediate()
 	{
         guard !buffer.isEmpty else
 		{
@@ -235,14 +306,14 @@ public final class SecureLogger
 	{
         #if canImport(UIKit)
         let center = NotificationCenter.default
-        if let o = willResignActiveObserver
+        if let observer = willResignActiveObserver
 		{
-			center.removeObserver(o)
+			center.removeObserver(observer)
 		}
 		
-        if let o = willTerminateObserver
+        if let observer = willTerminateObserver
 		{
-			center.removeObserver(o)
+			center.removeObserver(observer)
 		}
 		
         willResignActiveObserver = nil

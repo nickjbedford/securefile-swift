@@ -33,9 +33,9 @@ public class SecureFile
 	///   - temporaryDirectory: Optional. The temporary directory to use when writing the file atomically.
 	///   This will use `FileManager.default.temporaryDirectory` if not specified.
 	public init(url: URL,
-		 key: SymmetricKey,
-		 encryptionMethod: EncryptionMethod = .best,
-		 temporaryDirectory: URL? = nil)
+				key: SymmetricKey,
+				encryptionMethod: EncryptionMethod = .best,
+				temporaryDirectory: URL? = nil)
 	{
 		self.url = url
 		self.key = key
