@@ -100,10 +100,6 @@ public final actor SecureLogger
 			return
 		}
 		
-#if DEBUG
-		print("[SecureLogger]: DEINIT - Flushing \(buffer.count) new lines to log file...")
-#endif
-		
 		let secureFile = secureFile
 		
 		Task { [secureFile, buffer] in
@@ -232,10 +228,6 @@ public final actor SecureLogger
 		
 		self.stopFlushInterval()
 		
-#if DEBUG
-		print("[SecureLogger]: Flushing \(buffer.count) new lines to log file...")
-#endif
-		
 		let lines = buffer
 		buffer.removeAll(keepingCapacity: true)
 		bufferedBytes = 0
@@ -246,24 +238,13 @@ public final actor SecureLogger
 		
 		do
 		{
-#if DEBUG
-			let start = DispatchTime.now()
-#endif
-			
 			let bytesWritten = try await Self.append(newLines: lines, to: secureFile)
-			
-#if DEBUG
-			let duration = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000
-			print("[SecureLogger]: Writing \(bytesWritten) bytes of log file took \(duration)ms")
-#endif
 		}
 		catch
 		{
 			// On failure, requeue the lines for a later attempt (best-effort)
 			buffer.insert(contentsOf: lines, at: 0)
 			bufferedBytes = buffer.reduce(0) { $0 + $1.lengthOfBytes(using: .utf8) + 1 }
-			
-			print("[SecureLogger]: Flushing failed, requeuing due to error '\(error.localizedDescription)'.")
 		}
     }
 
@@ -287,15 +268,8 @@ public final actor SecureLogger
 				
 				guard let self = self else
 				{
-#if DEBUG
-					print("[SecureLogger]: FLUSH TIMER - Weak self is nil")
-#endif
 					return
 				}
-				
-#if DEBUG
-				print("[SecureLogger]: FLUSH TIMER - Flushing if necessary")
-#endif
 				
 				await self.flush()
 			}

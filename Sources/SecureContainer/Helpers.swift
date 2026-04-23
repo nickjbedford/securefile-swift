@@ -66,16 +66,3 @@ public func lock(urlForWriting url: URL, timeout: TimeInterval = 5, _ closure: (
 	try closure(fileHandle)
 	return true
 }
-
-func print(_ label: String, hex bytes: [UInt8]) -> Void
-{
-	let hex = bytes.map { String(format: "%02x", $0) }.joined()
-	print("\(label): \(hex)")
-}
-
-func print(_ label: String, hex data: Data) -> Void
-{
-	data.withUnsafeBytes { bytes in
-		print(label, hex: [UInt8](bytes))
-	}
-}
