@@ -238,7 +238,7 @@ public final actor SecureLogger
 		
 		do
 		{
-			let bytesWritten = try await Self.append(newLines: lines, to: secureFile)
+			try await Self.append(newLines: lines, to: secureFile)
 		}
 		catch
 		{
@@ -282,6 +282,7 @@ public final actor SecureLogger
 		flushTask = nil
     }
 	
+	@discardableResult
 	private static func append(newLines: [String], to secureFile: SecureFile) async throws -> UInt64
 	{
 		let exists = await secureFile.exists

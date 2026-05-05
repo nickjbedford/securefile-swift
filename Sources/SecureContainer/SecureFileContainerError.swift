@@ -7,8 +7,8 @@
 
 import Foundation
 
-public enum SecureFileContainerError: Error, Sendable
+public enum SecureFileContainerError: Error
 {
-	case directoryPathCannotBeUsed
-	case directoryNotCreated
+	case directoryPathCannotBeUsed(URL)
+	case directoryNotCreated(URL)
 }

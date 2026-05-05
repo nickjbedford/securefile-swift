@@ -10,7 +10,7 @@ import CryptoKit
 
 /// `SecureFileContainer` is the interface to read and write secure encrypted files under a container directory.
 /// It allows easy creation of nested container folders and access to named files, all using a single `SymmetricKey`.
-public class SecureFileContainer
+public actor SecureFileContainer
 {
 	public let directory: URL
 	private let key: SymmetricKey
@@ -23,7 +23,7 @@ public class SecureFileContainer
 	///   - temporaryDirectory: Optional. The temporary file directory to pass to `SecureFile` instances for use when writing encrypted files.
 	public init(directory: URL,
 				key: SymmetricKey,
-				temporaryDirectory: URL? = nil) throws
+				temporaryDirectory: URL? = nil) async throws
 	{
 		self.directory = directory
 		self.key = key
@@ -52,10 +52,10 @@ public class SecureFileContainer
 	/// Creates a `SecureFileContainer` instance to a folder under this directory and ensures it is created on disk.
 	/// - Parameter name: The name of the sub-folder.
 	/// - Returns: A `SecureFileContainer` instance pointing to the
-	public func folder(_ name: String) throws -> SecureFileContainer
+	public func folder(_ name: String) async throws -> SecureFileContainer
 	{
 		let directory = self.directory.appending(component: name, directoryHint: .isDirectory)
-		return try SecureFileContainer(directory: directory, key: key)
+		return try await SecureFileContainer(directory: directory, key: key)
 	}
 	
 	private func ensureExists() throws -> Void
@@ -64,7 +64,7 @@ public class SecureFileContainer
 		
 		guard FileManager.default.fileExists(atPath: directory.path(percentEncoded: false)) else
 		{
-			throw SecureFileContainerError.directoryNotCreated
+			throw SecureFileContainerError.directoryNotCreated(directory)
 		}
 	}
 }

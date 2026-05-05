@@ -8,13 +8,13 @@ import Foundation
 {
 	let key = SymmetricKey(size: .bits256)
 	let directory = try testDirectory().appending(component: "MyContainer_\(randomString())")
-	let container = try SecureFileContainer(directory: directory, key: key)
+	let container = try await SecureFileContainer(directory: directory, key: key)
 	
 	var isDirectory: ObjCBool = false
-	let containerExists = FileManager.default.fileExists(atPath: container.directory.path(percentEncoded: false), isDirectory: &isDirectory)
+	let containerExists = FileManager.default.fileExists(atPath: await container.directory.path(percentEncoded: false), isDirectory: &isDirectory)
 	#expect(containerExists && isDirectory.boolValue)
 	
-	let file = container.file("Test.txt")
+	let file = await container.file("Test.txt")
 	
 	#expect(await !file.exists)
 	
@@ -28,9 +28,9 @@ import Foundation
 {
 	let key = SymmetricKey(size: .bits256)
 	let directory = try testDirectory().appending(component: "MyContainer_\(randomString())")
-	let container = try SecureFileContainer(directory: directory, key: key).folder("Nested")
+	let container = try await SecureFileContainer(directory: directory, key: key).folder("Nested")
 	
-	let file = container.file("Test.txt")
+	let file = await container.file("Test.txt")
 	
 	#expect(await !file.exists)
 	
