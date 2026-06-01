@@ -130,7 +130,7 @@ public final actor SecureFile
 	/// Writes a JSON-encoded `Encodable` object to the file securely using the specified `encryptionMethod`.
 	/// - Parameter jsonEncodable: The JSON-encodable `Encodable` object to write to the file.
 	@discardableResult
-	public func write(jsonEncodable encodable: Encodable) throws -> UInt64
+	public func write<T: Encodable & Sendable>(jsonEncodable encodable: T) throws -> UInt64
 	{
 		let encoded = try JSONEncoder().encode(encodable)
 		return try write(encoded)
