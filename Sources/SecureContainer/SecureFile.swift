@@ -109,9 +109,9 @@ public final actor SecureFile
 	/// Reads the file as JSON and decode it into its original type.
 	/// - Parameter type: The `Decodable` type to decode into.
 	/// - Returns: An object of the specified `Decodable` type.
-	public nonisolated func readJson<T: Decodable>(as type: T.Type) async throws -> T
+	public func readJson<T: Decodable>(as type: T.Type) throws -> T
 	{
-		try await JSONDecoder().decode(type, from: try read())
+		try JSONDecoder().decode(type, from: try read())
 	}
 	
 	/// Writes a string encoded in UTF-8 to the file securely using the specified `encryptionMethod`.
@@ -130,10 +130,10 @@ public final actor SecureFile
 	/// Writes a JSON-encoded `Encodable` object to the file securely using the specified `encryptionMethod`.
 	/// - Parameter jsonEncodable: The JSON-encodable `Encodable` object to write to the file.
 	@discardableResult
-	public nonisolated func write(jsonEncodable encodable: Encodable) async throws -> UInt64
+	public func write(jsonEncodable encodable: Encodable) throws -> UInt64
 	{
 		let encoded = try JSONEncoder().encode(encodable)
-		return try await write(encoded)
+		return try write(encoded)
 	}
 	
 	/// Writes a binary `Data` object to the file securely using the specified `encryptionMethod`.
