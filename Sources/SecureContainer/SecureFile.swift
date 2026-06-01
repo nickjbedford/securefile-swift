@@ -109,7 +109,7 @@ public final actor SecureFile
 	/// Reads the file as JSON and decode it into its original type.
 	/// - Parameter type: The `Decodable` type to decode into.
 	/// - Returns: An object of the specified `Decodable` type.
-	public func readJson<T: Decodable>(as type: T.Type) throws -> T
+	public func readJson<T: Decodable>(as type: sending T.Type) throws -> sending T
 	{
 		try JSONDecoder().decode(type, from: try read())
 	}
