@@ -51,11 +51,24 @@ public actor SecureFileContainer
 	
 	/// Creates a `SecureFileContainer` instance to a folder under this directory and ensures it is created on disk.
 	/// - Parameter name: The name of the sub-folder.
-	/// - Returns: A `SecureFileContainer` instance pointing to the
+	/// - Returns: A `SecureFileContainer` instance pointing to the folder.
 	public func folder(_ name: String) async throws -> SecureFileContainer
 	{
 		let directory = self.directory.appending(component: name, directoryHint: .isDirectory)
 		return try await SecureFileContainer(directory: directory, key: key)
+	}
+	
+	/// Gets a `SecureFileContainer` instance to a folder under this directory, but only if it already exists.
+	/// - Parameter name: The name of the sub-folder.
+	/// - Returns: A `SecureFileContainer` instance pointing to the folder.
+	public func folderIfExists(_ name: String) async throws -> SecureFileContainer?
+	{
+		guard has(name).isDirectory else
+		{
+			return nil
+		}
+		
+		return try await folder(name)
 	}
 	
 	private func ensureExists() throws -> Void

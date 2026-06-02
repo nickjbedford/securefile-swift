@@ -28,7 +28,10 @@ import Foundation
 {
 	let key = SymmetricKey(size: .bits256)
 	let directory = try testDirectory().appending(component: "MyContainer_\(randomString())")
+	
+	#expect(try await SecureFileContainer(directory: directory, key: key).folderIfExists("Nested") == nil)
 	let container = try await SecureFileContainer(directory: directory, key: key).folder("Nested")
+	#expect(try await SecureFileContainer(directory: directory, key: key).folderIfExists("Nested") != nil)
 	
 	let file = await container.file("Test.txt")
 	

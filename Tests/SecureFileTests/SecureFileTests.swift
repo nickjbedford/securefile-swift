@@ -4,7 +4,7 @@ import Foundation
 
 @testable import SecureFile
 
-final class EncodableTest: Codable
+final class EncodableTest: Codable, Sendable
 {
 	public let number: Int
 	public let string: String
