@@ -187,7 +187,7 @@ public final actor SecureLogger
 	{
 		let parts = [
 			ISO8601DateFormatter().string(from: now ?? Date()),
-			type.rawValue,
+			type.label,
 			message
 		] + additionalData
 		
