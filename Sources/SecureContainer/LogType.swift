@@ -14,7 +14,7 @@ public enum LogType: Sendable
 	case performance
 	case custom(String)
 	
-	var label: String
+	public var label: String
 	{
 		switch self
 		{
