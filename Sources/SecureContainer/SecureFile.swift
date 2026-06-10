@@ -53,6 +53,15 @@ public final actor SecureFile
 		}
 	}
 	
+	/// Gets the basename (lastPathComponent) of the file path.
+	public var basename: String
+	{
+		get
+		{
+			url.lastPathComponent
+		}
+	}
+	
 	/// Reads the file into its original plain-text binary data.
 	/// - Returns: A Data object containing the original plain-text data.
 	public func read() throws -> Data
